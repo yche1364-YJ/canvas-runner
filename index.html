@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Canvas Runner</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #111;
+      color: #eee;
+      font-family: system-ui, sans-serif;
+    }
+    body {
+      display: grid;
+      place-items: center;
+    }
+    canvas {
+      width: min(960px, 100vw);
+      height: auto;
+      background: #1a1a1a;
+      image-rendering: pixelated;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="960" height="360" tabindex="0"></canvas>
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const GROUND_Y = 300;
+    const GRAVITY = 0.85;
+    const JUMP_VELOCITY = -15;
+    const PLAYER_SIZE = 40;
+    const OBSTACLE_SIZE = 36;
+
+    const player = {
+      x: 80,
+      y: GROUND_Y - PLAYER_SIZE,
+      w: PLAYER_SIZE,
+      h: PLAYER_SIZE,
+      vy: 0,
+      onGround: true,
+    };
+
+    let obstacles = [];
+    let spawnTimer = 80;
+    let speed = 6;
+    let score = 0;
+    let best = 0;
+    let running = true;
+    let last = 0;
+
+    function reset() {
+      player.y = GROUND_Y - PLAYER_SIZE;
+      player.vy = 0;
+      player.onGround = true;
+      obstacles = [];
+      spawnTimer = 40;
+      speed = 6;
+      score = 0;
+      running = true;
+    }
+
+    function jump() {
+      if (!running) {
+        reset();
+        return;
+      }
+      if (player.onGround) {
+        player.vy = JUMP_VELOCITY;
+        player.onGround = false;
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        jump();
+      }
+    });
+
+    function spawnObstacle() {
+      const tall = Math.random() < 0.35;
+      const h = tall ? OBSTACLE_SIZE * 1.6 : OBSTACLE_SIZE;
+      obstacles.push({
+        x: canvas.width + 20,
+        y: GROUND_Y - h,
+        w: OBSTACLE_SIZE,
+        h,
+      });
+    }
+
+    function hit(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function update(dt) {
+      if (!running) return;
+
+      speed += dt * 0.0004;
+      score += dt * 0.01 * speed;
+
+      player.vy += GRAVITY;
+      player.y += player.vy;
+      if (player.y >= GROUND_Y - player.h) {
+        player.y = GROUND_Y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      }
+
+      spawnTimer -= dt * 0.06 * (speed / 6);
+      if (spawnTimer <= 0) {
+        spawnObstacle();
+        spawnTimer = 55 + Math.random() * 50;
+      }
+
+      for (const o of obstacles) o.x -= speed;
+      obstacles = obstacles.filter((o) => o.x + o.w > -10);
+
+      for (const o of obstacles) {
+        if (hit(player, o)) {
+          running = false;
+          best = Math.max(best, Math.floor(score));
+          break;
+        }
+      }
+    }
+
+    function draw() {
+      ctx.fillStyle = "#222";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#2e2e2e";
+      ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+
+      ctx.fillStyle = "#4aa3ff";
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+
+      ctx.fillStyle = "#e35d5d";
+      for (const o of obstacles) ctx.fillRect(o.x, o.y, o.w, o.h);
+
+      ctx.fillStyle = "#eee";
+      ctx.font = "20px system-ui, sans-serif";
+      ctx.fillText("Score " + Math.floor(score), 16, 32);
+      ctx.fillText("Best " + best, 16, 56);
+
+      if (!running) {
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#fff";
+        ctx.font = "28px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Game over", canvas.width / 2, canvas.height / 2 - 12);
+        ctx.font = "16px system-ui, sans-serif";
+        ctx.fillText("Press an arrow key to restart", canvas.width / 2, canvas.height / 2 + 18);
+        ctx.textAlign = "left";
+      }
+    }
+
+    function loop(t) {
+      const dt = Math.min(32, t - last || 16);
+      last = t;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    canvas.focus();
+    canvas.addEventListener("click", () => canvas.focus());
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
